@@ -20,20 +20,22 @@ export default function () {
     return data;
   });
   extend(EditTagModal.prototype, 'fields', function(fields) {
-    fields.add('mailbox_enabled', <div className="Form-group">
-      <div>
-        <label className="checkbox">
-          <input type="checkbox" value="1" checked={this.mailboxEnabled()} onchange={m.withAttr('checked', this.mailboxEnabled)}/>
-          {app.translator.trans('fof-mailbox.admin.edit_tag.mailbox_enabled')}
-        </label>
-      </div>
+    if (this.tag.canEnableMailbox()) {
+      fields.add('mailbox_enabled', <div className="Form-group">
+        <div>
+          <label className="checkbox">
+            <input type="checkbox" value="1" checked={this.mailboxEnabled()} onchange={m.withAttr('checked', this.mailboxEnabled)}/>
+            {app.translator.trans('fof-mailbox.admin.edit_tag.mailbox_enabled')}
+          </label>
+        </div>
 
-      <p>
-        {app.translator.trans('fof-mailbox.admin.edit_tag.mailbox_consequences')}
-      </p>
-    </div>, 9);
+        <p>
+          {app.translator.trans('fof-mailbox.admin.edit_tag.mailbox_consequences')}
+        </p>
+      </div>, 9);
+    }
 
-    if (!! this.mailboxEnabled()) {
+    if (this.tag.canEnableMailbox() && !! this.mailboxEnabled()) {
       fields.add('mailbox_imap_host', <div className="Form-group">
         <label>{app.translator.trans('fof-mailbox.admin.edit_tag.mailbox_imap_host')}</label>
         <input className="FormControl" value={this.mailboxImapHost()} onInput={m.withAttr('value', this.mailboxImapHost)}/>
