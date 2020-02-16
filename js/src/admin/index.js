@@ -4,7 +4,7 @@ import Tag from "./models/Tag";
 
 app.initializers.add('fof/mailbox', () => {
   // Settings Modal
-  settingsModal();
+  // settingsModal();
 
   // Enable based on settings.
   const settings = app.data.settings;

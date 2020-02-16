@@ -3,13 +3,9 @@ fof-mailbox:
     edit_tag:
       mailbox_enabled: Enable a mailbox
       mailbox_consequences: >
-        Enabling a mailbox on a tag will sync the folders of the inbox to sub tags and any
-        e-mails as discussions.
+        Enabling a mailbox on a tag will sync emails to discussions and vice versa.
       mailbox_imap_host: IMAP Host
       mailbox_imap_port: IMAP Port
-      mailbox_imap_username: IMAP username
-      mailbox_imap_password: IMAP password
-    settings:
-      title: Configure Mailbox
-      modes:
-        account_per_primary_tag: Allow configuring a mailbox on a primary tag
+      mailbox_imap_encryption: IMAP Encryption
+      mailbox_imap_username: IMAP Username
+      mailbox_imap_password: IMAP Password
