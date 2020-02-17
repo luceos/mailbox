@@ -24,32 +24,21 @@ class EmailOnReply
         }
 
         // Identify whether mailbox is enabled.
-        $tags = $event->post->discussion->tags()
+        $tag = $event->post->discussion->tags()
             ->where('mailbox_enabled', true)
-            ->get();
-
-        $toSent = null;
+            ->first();
 
         $recipient = $event->post->discussion->firstPost->user;
 
-        foreach ($tags as $tag) {
-            $mailbox = Mailbox::asTag($tag);
+        $mailbox = Mailbox::asTag($tag);
 
-            if ($toSent === null) {
-                $swift = $mailbox->swift();
-                $message = new Swift_Message($event->post->discussion->title, $event->post->content);
-                $message->getHeaders()->addParameterizedHeader('references', $id);
-                $message->setFrom($mailbox->sender);
-                $message->setTo($recipient->email, $recipient->username);
-                $message->setId(substr($id, 1, -1));
-                $toSent = $message->toString();
-                $swift->send($message);
-            }
-
-            $connection = $mailbox->connection();
-            $sent = $connection->getMailbox('Sent');
-            $sent->addMessage($toSent, '\\Seen');
-        }
+        $swift = $mailbox->swift();
+        $message = new Swift_Message($event->post->discussion->title, $event->post->content);
+        $message->getHeaders()->addParameterizedHeader('references', $id);
+        $message->setFrom($mailbox->sender);
+        $message->setTo($recipient->email, $recipient->username);
+        $message->setId(substr($id, 1, -1));
+        $swift->send($message);
     }
 
     protected function mailer(): Mailer

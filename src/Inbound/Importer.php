@@ -52,6 +52,10 @@ class Importer
         $connection = $mailbox->connection();
 
         foreach ($connection->getMailboxes() as $folder) {
+            if (($folder->getAttributes() & \LATT_NOSELECT) || in_array(strtolower($folder->getName()), ['junk', 'sent', 'drafts', 'archive', 'trash'])) {
+                continue;
+            }
+
             if ($folder->count() > 0) {
                 foreach ($folder->getMessages() as $imap) {
                     $message = new Message($imap);
@@ -89,7 +93,7 @@ class Importer
         $discussion->tags()->sync($mailbox->tag);
 
         $post          = $this->posts->forEmailId($message->getId(), $message->getNumber());
-        $post->content = $message->getDecodedContent();
+        $post->content = $message->getBodyText();
         $post->discussion()->associate($discussion);
         $post->user()->associate($user);
         $post->created_at = $message->getDate()->setTimezone(new DateTimeZone('UTC'));;
