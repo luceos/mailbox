@@ -3,17 +3,19 @@
 namespace FoF\Mailbox\Inbound;
 
 use DateTimeZone;
-use Ddeboer\Imap\Server;
-use Flarum\Discussion\Discussion;
 use Flarum\Discussion\Event\Started;
 use Flarum\Post\Event\Posted;
 use Flarum\User\User;
 use Flarum\User\UserRepository;
+use FoF\Mailbox\Events\EmailProcessed;
+use FoF\Mailbox\Events\EmailReceived;
+use FoF\Mailbox\Events\IgnoredFolders;
 use FoF\Mailbox\Models\Mailbox;
 use FoF\Mailbox\Models\Message;
 use FoF\Mailbox\Repositories\DiscussionRepository;
 use FoF\Mailbox\Repositories\MailboxRepository;
 use FoF\Mailbox\Repositories\PostRepository;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Str;
 
 class Importer
@@ -34,25 +36,35 @@ class Importer
      * @var UserRepository
      */
     private $users;
+    /**
+     * @var Dispatcher
+     */
+    private $events;
 
     public function __construct(
         MailboxRepository $mailboxes,
         DiscussionRepository $discussions,
         PostRepository $posts,
-        UserRepository $users
+        UserRepository $users,
+        Dispatcher $events
     ) {
         $this->mailboxes   = $mailboxes;
         $this->discussions = $discussions;
         $this->posts       = $posts;
         $this->users       = $users;
+        $this->events = $events;
     }
 
     public function import(Mailbox $mailbox)
     {
         $connection = $mailbox->connection();
 
+        $ignoredFolders = ['junk', 'sent', 'drafts', 'archive', 'trash'];
+
+        $this->events->push(new IgnoredFolders($ignoredFolders));
+
         foreach ($connection->getMailboxes() as $folder) {
-            if (($folder->getAttributes() & \LATT_NOSELECT) || in_array(strtolower($folder->getName()), ['junk', 'sent', 'drafts', 'archive', 'trash'])) {
+            if (($folder->getAttributes() & \LATT_NOSELECT) || in_array(strtolower($folder->getName()), $ignoredFolders)) {
                 continue;
             }
 
@@ -71,7 +83,8 @@ class Importer
 
     protected function importMessage(Mailbox $mailbox, Message $message, User $user)
     {
-        $discussion = null;
+        $discussion = $post = null;
+
         if ($message->reference) {
             foreach ($message->reference as $ref) {
                 $discussion = $this->discussions->forThreadId($ref);
@@ -81,6 +94,8 @@ class Importer
         } else {
             $discussion = $this->discussions->forThreadId($message->getId());
         }
+
+        $this->events->push(new EmailReceived($message, $discussion, $post));
 
         if (!$discussion->exists) {
             $discussion->title = $message->getSubject();
@@ -92,7 +107,9 @@ class Importer
 
         $discussion->tags()->sync($mailbox->tag);
 
-        $post          = $this->posts->forEmailId($message->getId(), $message->getNumber());
+        if (! $post) {
+            $post = $this->posts->forEmailId($message->getId(), $message->getNumber());
+        }
         $post->content = $message->getBodyText();
         $post->discussion()->associate($discussion);
         $post->user()->associate($user);
@@ -114,6 +131,8 @@ class Importer
         if ($post->wasRecentlyCreated) {
             $post->raise(new Posted($post));
         }
+
+        $this->events->push(new EmailProcessed($message, $discussion, $post));
     }
 
     protected function importUser(Message $message): User
