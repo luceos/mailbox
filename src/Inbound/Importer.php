@@ -61,7 +61,7 @@ class Importer
 
         $ignoredFolders = ['junk', 'sent', 'drafts', 'archive', 'trash'];
 
-        $this->events->push(new IgnoredFolders($ignoredFolders));
+        $this->events->dispatch(new IgnoredFolders($ignoredFolders));
 
         foreach ($connection->getMailboxes() as $folder) {
             if (($folder->getAttributes() & \LATT_NOSELECT) || in_array(strtolower($folder->getName()), $ignoredFolders)) {
@@ -85,6 +85,8 @@ class Importer
     {
         $discussion = $post = null;
 
+        if (empty($message->getBodyText())) return;
+
         if ($message->reference) {
             foreach ($message->reference as $ref) {
                 $discussion = $this->discussions->forThreadId($ref);
@@ -95,7 +97,7 @@ class Importer
             $discussion = $this->discussions->forThreadId($message->getId());
         }
 
-        $this->events->push(new EmailReceived($message, $discussion, $post));
+        $this->events->dispatch(new EmailReceived($message, $discussion, $post));
 
         if (!$discussion->exists) {
             $discussion->title = $message->getSubject();
@@ -132,7 +134,7 @@ class Importer
             $post->raise(new Posted($post));
         }
 
-        $this->events->push(new EmailProcessed($message, $discussion, $post));
+        $this->events->dispatch(new EmailProcessed($message, $discussion, $post));
     }
 
     protected function importUser(Message $message): User
@@ -142,7 +144,7 @@ class Importer
         $user = $this->users->findByEmail($from->getAddress());
 
         if (!$user) {
-            $user = User::register($from->getMailbox(), $from->getAddress(), Str::random());
+            $user = User::register(Str::slug($from->getAddress()), $from->getAddress(), Str::random());
             $user->save();
         }
 

@@ -43,6 +43,9 @@ class Mailbox extends Fluent
         if ($this->encryption === 'ssl') {
             $flags = '/ssl';
         }
+        if ($this->encryption === 'starttls') {
+            $flags = '/tls';
+        }
 
         $server = new Server($this->host, $this->port, $flags);
 
