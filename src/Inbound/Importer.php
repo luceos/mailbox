@@ -59,7 +59,7 @@ class Importer
     {
         $connection = $mailbox->connection();
 
-        $ignoredFolders = ['junk', 'sent', 'drafts', 'archive', 'trash'];
+        $ignoredFolders = ['junk', 'sent', 'drafts', 'archive', 'trash', 'spam'];
 
         $this->events->dispatch(new IgnoredFolders($ignoredFolders));
 
