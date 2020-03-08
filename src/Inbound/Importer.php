@@ -16,6 +16,7 @@ use FoF\Mailbox\Repositories\DiscussionRepository;
 use FoF\Mailbox\Repositories\MailboxRepository;
 use FoF\Mailbox\Repositories\PostRepository;
 use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Contracts\Queue\Queue;
 use Illuminate\Support\Str;
 
 class Importer
@@ -40,19 +41,25 @@ class Importer
      * @var Dispatcher
      */
     private $events;
+    /**
+     * @var Queue
+     */
+    private $queue;
 
     public function __construct(
         MailboxRepository $mailboxes,
         DiscussionRepository $discussions,
         PostRepository $posts,
         UserRepository $users,
-        Dispatcher $events
+        Dispatcher $events,
+        Queue $queue
     ) {
         $this->mailboxes   = $mailboxes;
         $this->discussions = $discussions;
         $this->posts       = $posts;
         $this->users       = $users;
         $this->events = $events;
+        $this->queue = $queue;
     }
 
     public function import(Mailbox $mailbox)
@@ -73,81 +80,10 @@ class Importer
                     $message = new Message($imap);
 
                     if ($message->validForImport()) {
-                        $user = $this->importUser($message);
-                        $this->importMessage($mailbox, $message, $user);
+                        $this->queue->push(new ImportJob($mailbox, $message));
                     }
                 }
             }
         }
-    }
-
-    protected function importMessage(Mailbox $mailbox, Message $message, User $user)
-    {
-        $discussion = $post = null;
-
-        if (empty($message->getBodyText())) return;
-
-        if ($message->reference) {
-            foreach ($message->reference as $ref) {
-                $discussion = $this->discussions->forThreadId($ref);
-
-                if ($discussion) break;
-            }
-        } else {
-            $discussion = $this->discussions->forThreadId($message->getId());
-        }
-
-        $this->events->dispatch(new EmailReceived($message, $discussion, $post));
-
-        if (!$discussion->exists) {
-            $discussion->title = $message->getSubject();
-
-            $discussion->save();
-
-            $discussion->raise(new Started($discussion));
-        }
-
-        $discussion->tags()->sync($mailbox->tag);
-
-        if (! $post) {
-            $post = $this->posts->forEmailId($message->getId(), $message->getNumber());
-        }
-        $post->content = $message->getBodyText();
-        $post->discussion()->associate($discussion);
-        $post->user()->associate($user);
-        $post->created_at = $message->getDate()->setTimezone(new DateTimeZone('UTC'));;
-        $post->save();
-
-        if ($message->isFirst || $discussion->first_post_id === null) {
-            $discussion->created_at = $message->getDate()->setTimezone(new DateTimeZone('UTC'));
-            $discussion->user()->associate($user);
-            $discussion->setFirstPost($post);
-        }
-
-        $discussion->refreshCommentCount();
-        $discussion->refreshLastPost();
-        $discussion->refreshParticipantCount();
-
-        $discussion->save();
-
-        if ($post->wasRecentlyCreated) {
-            $post->raise(new Posted($post));
-        }
-
-        $this->events->dispatch(new EmailProcessed($message, $discussion, $post));
-    }
-
-    protected function importUser(Message $message): User
-    {
-        $from = $message->getFrom();
-
-        $user = $this->users->findByEmail($from->getAddress());
-
-        if (!$user) {
-            $user = User::register(Str::slug($from->getAddress()), $from->getAddress(), Str::random());
-            $user->save();
-        }
-
-        return $user;
     }
 }
